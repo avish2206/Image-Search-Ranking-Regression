@@ -13,8 +13,6 @@ from sklearn import linear_model
 from sklearn import preprocessing
 from sklearn.model_selection import KFold
 from sklearn.model_selection import train_test_split
-from sklearn.feature_selection import chi2
-from sklearn.feature_selection import SelectKBest
 
 
 # calcScore: calculates _score_ which is the clicks scaled by the min-max of that particular query
@@ -48,29 +46,12 @@ def EVD(features,eig_thresh):
     return to_remove
 
 
-# getKBest: Finds K-best features using chi-squared univariate analysis 
-# inputs: X - training data
-#         y - output data
-#         K - number of features to output (<= X.shape[1])
-# Output: list of K best features
-def getKBest(X,y,K):
-    if K=='all' or K>X.shape[1]:
-        return list(X.columns)
-    bestfeatures = SelectKBest(score_func=chi2, k=K)   
-    fit = bestfeatures.fit(X,y)
-    scores = pd.DataFrame(fit.scores_)
-    columns = pd.DataFrame(X.columns)
-    df = pd.concat([columns,scores],axis=1)
-    df.columns = ['Specs','Score']  
-    return list(df.nlargest(K,'Score').Specs.values) 
-
-
 # processData: processes original data and obtains final set of features and scores 
 # inputs: df - original data frame
 #         eig_thresh - eigenvalue threshold for EVD 
 #         K - number of features to extract using chi-sq analysis
 # Output: final data frame
-def processData(df,eig_thresh,K):
+def processData(df,eig_thresh):
     # remove media_id column
     df.drop('media_id',axis=1,inplace=True)
 
@@ -97,11 +78,6 @@ def processData(df,eig_thresh,K):
     to_remove = EVD(features,eig_thresh)
     features = np.delete(features,list(to_remove),axis=1)
     X.drop(X.columns[[x+1 for x in list(to_remove)]],axis=1,inplace=True)
-
-    # extract best K features (NOTE: unknown data type error if I use y(float64), so use clicks(int) instead)
-    Kbest = getKBest(X.iloc[:,1:],df['clicks'],K)
-    Kbest.insert(0,'query')
-    X = X.loc[:,Kbest]
     
     # concatente to return final dataframe
     return pd.concat([X, y], axis=1)
@@ -158,17 +134,13 @@ def main():
     df = pd.read_csv(path)
     
     # process data and extract final set of scaled features(X) and scores(y) 
-    # note eig_thresh is a threshold value used in EVD, K is the number 
-    # of features selected in getKBest ('all' for no filtering)
+    # note eig_thresh is a threshold value used in EVD
     eig_thresh = 1e-3
-    K = 10 # K=10 was found to be the most accurate through trial & error
-    df = processData(df,eig_thresh,K)
+    df = processData(df,eig_thresh)
     X = df.iloc[:,:-1]
     y = df.iloc[:,-1]
     
     # _features_ and _scores_ defined:
-    # _features_ = ['f9', 'f11', 'f29', 'f19', 'f14', 'f10', 'f4', 'f28', 'f15', 'f1'] for K=10
-    # _scores_ is clicks which are min-max scaled with respect to each qury
     _features_ = list(X.iloc[:,1:].columns)
     _scores_   = y
     
