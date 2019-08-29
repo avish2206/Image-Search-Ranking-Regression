@@ -1,57 +1,39 @@
 # Image Search Ranking
 
-## Product context
+## Context
 
-Canva has over 50 million images for a user to choose from when creating a new design. Image search is important to Canva so that users can find the right image conveniently at any time during the design process. We have more than 10 billion user query logs to learn from in over 100 languages.
-
-We want to predict a ranked list of results for each query so that users always find great stock imagery for their designs.
+Image search is important to companies so that users can find the right image conveniently at any time during the design process. We want to predict a ranked list of results for each query so that users always find great stock imagery for their designs.
 
 ## Data
 
-We've supplied a small sample of anonymized data from our image search in the file `data.csv.gz`.
+Over 110,000 rows of anonymized data from images searched in the file `image_summary.csv`.
 ```
 media_id,query,f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13,f14,f15,f16,f17,f18,f19,f20,f21,f22,f23,f24,f25,f26,f27,f28,f29,f30,f31,f32,f33,clicks
-97fd5eb5e8,stars,True,,31,False,False,False,False,True,False,1413,0,0,0.0,0.0,True,0,0,0.0,0.0,143.62915,72.13346,0,0,0.0,0.0,0.0,0.0,4.0,-1.0,16,3,22,0,0
-97fd5eb5e8,star,True,,15,False,False,True,False,False,False,975,0,0,0.0,0.0,True,0,0,0.0,0.0,162.12103000000002,68.08842,0,0,0.0,0.0,0.0,0.0,4.0,-1.0,16,3,22,0,0
-c94faef102,beach,True,,30,False,False,True,False,True,False,15548,0,2,0.0,0.0,True,0,2,0.0,0.0,5.5240545,11.842522,0,0,0.0,0.0,0.0,0.0,4.0,-1.0,5,3,30,0,2
 ```
-To decompress the data, in a terminal run
-```
->> gunzip data.csv.gz
-```
-
 The columns are:
 * `media_id` a reference to the image that was returned by the search (each image is given a unique ID),
 * `query` the query that the user typed (only English),
 * `f1` to `f33` features extracted from search logs, all with integer, float or boolean values,
 * `clicks` the number of times this particular `media_id` was clicked for this query.
 
-## Task
+### Model Preparation, Training and Validation
+* Utilize a simple linear regression model to assign a score to each image
+* We can map the `clicks` to a  _score_ by min-max scaling each clicks value with respect to the minimum and maximum clicks for each query. For example, if image 1 for a query 'stars' had 5 clicks, and the minimum for 'stars' was 0, and maximum was '10', then the score would be 0.5.
+* We need to identify _features_ that we will use to train our model. In order to do this, we can begin by removing redundant features such as `media_id`, and ones which have 0 variance across the dataset. We then proceed to use PCA analysis to remove collinear features. The idea here is to produce a correlation matrix and its eigenvalues/eigenvectors. Extremely low value eigenvectors point to collinearties in the model, which effectively mean some features are linear functions of other features, and therefore redundant.
+* Finally we can utilize a standard sci-kit learn linear regression model to train the data. Due to the large number of rows available, we keep aside 10% of the data for final validation. For training, K-fold validation is implemented with 10 folds.
 
-One way to solve ranking problems is via a **simple linear regression**. Specifically, we want to learn a single model that predicts a _score_ between `0` and `1` that approximates how much a user would click on a `media_id` result for a `query`.
+### Evaluating Predictions
+* For image search ranking, we aren't so much interested in the accuracy of our linear model, but rather if our scores effectively rank the images according to how much they were clicked. 
+* We utilize the discounted cumulative gain, and normalized discounted cumulative gain as measures of our ranking. For more information on these metrics, see https://machinelearningmedium.com/2017/07/24/discounted-cumulative-gain/. 
 
-The following subtasks will help you come up with this solution.
+### Running the program
+The program can be run using the following command line prompts:
 
-### 1. Explore the data.
-
-This is an analysis task. You will need to:
-* Identify a _score_. Consider how we need to preprocess this to be suitable for learning.
-* Identify _features_ that we will use to train our model.
-
-### 2. Data preprocessing, model training and prediction
-
-This is a programming task. Write a short program that:
-* Applies any necessary preprocessing you identified in step 1 to the data.
-* Splits the data into a training and validation set.
-* Trains a **linear regression** model to predict a score between `0` and `1` (inclusive of both) for a data row.
-* Run that model on the validation data and print output to standard out.
-
-For example:
 ```bash
 python3 solution.py /path/to/data.csv > predictions.tsv
 ```
 
-The expected output format tab-separated text, one line for each instance in your validation data.
+The output format is tab-separated text, one line for each instance in the validation data.
 ```
 query\treal_score\tpredicted_score
 ```
@@ -65,7 +47,7 @@ education	1.0	0.843759720543486
 education	1.0	0.9702476627505279
 ```
 
-You should be able to use the included `evaluate_predictions.py` script to print the metric result for your output. For example:
+The `evaluate_predictions.py` script can then be run on the predictions file to produce the normalized discounted cumulative gain:
 ```bash
 python3 evaluate_predictions.py output.tsv
 ```
@@ -75,32 +57,8 @@ Prints (for a sample solution)
 0.9853599280765144
 Running tests
 🎉	test_dcg
+🎉	test_dcg2
+🎉	test_ncdg
+🎉	test_ncdg2
 ```
-
-### 3. Understanding the metric
-
-This is an analysis and programming task. You will need to:
-* Read the `evaluate_predictions.py` script to understand how we implement Normalised Discounted Cumulative Gain (NDCG). This is a common relevance metric that we're reusing for this task.
-* Write three more unittest-style functions following the `test_dcg()` example in `evaluate_predictions.py`.
-
-### 4. Discussion
-
-This is a short writing task. You will need to write maximum 300 words where you:
-* Suggest a few ways in which you might extend or improve the work.
-* Discuss how you could test that your solution works, both during development and as a deployed system.
-
-## Resources
-
-* Please use the data provided in `data.csv`.
-* Spend no more than 6 hours on the task. 
-* We care more about your approach than your model's performance (accuracy or inference speed), so don't feel you need to get a world-beating score.
-* Choose a language and libraries you feel comfortable in. Internally, we use Python and Scala, but please contact us if you wish to use another language and we can try to find a reviewer. Python with `scikit-learn` and `pandas` is recommended for these tasks.
-* The code does not need to be production ready, so as long as the approach and code structure is clear.
-
-## Submission
-
-Please submit:
-* The source code for your program for subtask 2. Please include any instructions on dependencies or compilation as a comment at the top of the file.
-* Your edited copy of `evaluate_predictions.py` from subtask 3 that includes the extra unittest functions.
-* Your discussion from subtask 4.
 
